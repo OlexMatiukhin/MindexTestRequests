@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Body, Depends, Query
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from pymongo.errors import PyMongoError
-from typing_extensions import Union, Annotated, List
+from typing_extensions import Union, Annotated, List, Optional
 from db.session import connect_db, get_collection
 from models.tenderModels import Tender
 
@@ -20,7 +20,7 @@ app = FastAPI()
 
 
 
-#Get Tender without filtation fields
+"""Get Tender without filtation fields
 @app.get("/tenders", tags=["tenders"], response_model=List[Tender])
 async def get_all_users(start: int = Query(default=0, ge=0), end: int = Query(default=0, ge=0),   client: AsyncIOMotorClient = Depends(connect_db)) -> List[Tender]:
     collection = await get_collection(client, "test_for_practice", "tenders_test")
@@ -46,38 +46,40 @@ async def get_all_users(start: int = Query(default=0, ge=0), end: int = Query(de
         raise HTTPException(status_code=404, detail="No tenders found")
 
     return [Tender(**{**tender, "_id": str(tender["_id"])}) for tender in tenders]
+"""""
+
 
 
 
 #Get tender only with quantyty strings
-@app.get("/tenders", tags=["tenders"], response_model=List[Tender])
-async def get_all_users(start: int = Query(default=0, ge=0), end: int = Query(default=0, ge=0),   client: AsyncIOMotorClient = Depends(connect_db)) -> List[Tender]:
+@app.get("/tenders/qs", tags=["tenders"])
+async def get_all_tenders(
+        quantity_strings: Optional[List[int]] = Query(None),
+        client: AsyncIOMotorClient = Depends(connect_db)
+) -> List[Tender]:
     collection = await get_collection(client, "test_for_practice", "tenders_test")
-    if start > 0 and end > start:
-        start -= 1
+    limit = 15
+
+    query = {
+        "$or": [
+            {"extended_info.region": "Київська область"},
+            {"extended_info.region": "Чернівецька область"}
+        ]
+    }
+    if quantity_strings and len(quantity_strings) == 2 and 0 < quantity_strings[0] < quantity_strings[1]:
+        start = quantity_strings[0] - 1
+        end = quantity_strings[1]
         limit = end - start
-        cursor = collection.find({
-            "$or": [
-                {"extended_info.region": "Київська область"},
-                {"extended_info.region": "Чернівецька область"}
-            ]
-        }).sort([("$natural", -1)]).skip(start).limit(limit)
-        tenders = await cursor.to_list(length=limit)
+        cursor = collection.find().sort([("$natural", -1)]).skip(start).limit(limit)
     else:
-        cursor = collection.find({
-            "$or": [
-                {"extended_info.region": "Київська область"},
-                {"extended_info.region": "Одеська область"}
-            ]
-        }).sort([("$natural", -1)]).skip(start).limit(15)
-        tenders = await cursor.to_list()
+        cursor = collection.find().sort([("$natural", -1)]).limit(limit)
+
+    tenders = await cursor.to_list(length=limit)
+
     if not tenders:
         raise HTTPException(status_code=404, detail="No tenders found")
 
     return [Tender(**{**tender, "_id": str(tender["_id"])}) for tender in tenders]
-
-
-
 
 
 
@@ -85,6 +87,8 @@ async def get_all_users(start: int = Query(default=0, ge=0), end: int = Query(de
 @app.get("/tenders/s", response_model=List[Tender])
 async def search_users(request:str, client: AsyncIOMotorClient = Depends(connect_db)) -> List[Tender]:
     collection = await get_collection(client, "test_for_practice", "tenders_test")
+
+
     cursor = collection.find({
         "$or": [
             {"items.description": {"$regex": request, "$options": "i"}},
@@ -97,7 +101,7 @@ async def search_users(request:str, client: AsyncIOMotorClient = Depends(connect
     return [Tender(**{**tender, "_id": str(tender["_id"])}) for tender in tenders]
 
 
-
+# Get TenderById
 @app.get("/tenders/{tender_id}", response_model=Tender, tags=["lol"])
 async def get_tender(tender_id: str, client: AsyncIOMotorClient = Depends(connect_db)):
 
@@ -114,18 +118,6 @@ async def get_tender(tender_id: str, client: AsyncIOMotorClient = Depends(connec
 
     return Tender(**{**tender, "_id": str(tender["_id"])})
 
-
-#Tenders filtratiron
-@app.get("/tenders", tags=["tenders"], response_model=List[Tender])
-async def get_all_users(sort_by:str=None, date_from:list=None, region:str=None, customer:str=None, supplier:str=None, quantity_strings: list[int]=None,   client: AsyncIOMotorClient = Depends(connect_db)) -> List[Tender]:
-    collection = await get_collection(client, "test_for_practice", "tenders_test")
-    if sort_by:
-
-
-    if not tenders:
-        raise HTTPException(status_code=404, detail="No tenders found")
-
-    return [Tender(**{**tender, "_id": str(tender["_id"])}) for tender in tenders]
 
 
 
