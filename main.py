@@ -29,8 +29,8 @@ app = FastAPI()
 
 
 #Get and filtrate elements
-"""
-@app.get("/tenders/allfiltr", tags=["tenders"])
+
+@app.get("/tenders/allfiltr",  tags=["tenders"])
 async def get_all_tenders(
         suspicious_level: Optional[str] = Query(None),
         sort_by: Optional[str] = Query(None),
@@ -101,23 +101,26 @@ async def get_all_tenders(
     if quantity_strings and len(quantity_strings) == 2:
         start, end = quantity_strings
         if 0 < start < end:
-            limit = end - start
             start -= 1
+            limit = end - start
+
         else:
             raise HTTPException(status_code=400, detail="Invalid range in quantity_strings.")
 
     cursor = collection.find(query).sort(sort_key[0], sort_key[1]).skip(start).limit(limit)
     tenders = await cursor.to_list(length=limit)
 
+
     if not tenders:
         raise HTTPException(status_code=404, detail="No tenders found.")
 
     return [Tender(**{**tender, "_id": str(tender["_id"])}) for tender in tenders]
-"""
+
+
 
 
 #Serach tenders
-@app.get("/tenders")
+@app.get("/tenders/search")
 async def search_tenders(request:str, client: AsyncIOMotorClient = Depends(connect_db)) -> List[Tender]:
     collection = await get_collection(client, "test_for_practice", "tenders_test")
 
@@ -136,7 +139,7 @@ async def search_tenders(request:str, client: AsyncIOMotorClient = Depends(conne
 
 
 
-@app.get("/tenders/short_statistic", tags=["statistic"])
+@app.get("/tendersstatA", tags=["statistic"])
 async def tenders_short_statistic(client: AsyncIOMotorClient = Depends(connect_db)) -> List[dict]:
     try:
         collection = await get_collection(client, "test_for_practice", "tenders_test")
@@ -188,53 +191,62 @@ async def tenders_short_statistic(client: AsyncIOMotorClient = Depends(connect_d
         raise HTTPException(status_code=500, detail=f"Error retrieving data: {str(e)}")
 
 
+
+
+
 #diagram statistic not done yet
-@app.get("/tenders/diagram_statistic", tags=["statistic"])
+@app.get("/tenderstatA", tags=["statistic"])
 async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(connect_db)) -> List[dict]:
     labels=["Kyiv", "Chernivtsi", "Kharkiv", "Odessa", "Lviv"]
 
     colors= ["green", "orange", "red"]
     try:
-        collection = await get_collection(client, "test_for_practice", "tenders_test")
-
         current_date = datetime.now()
 
-        start_of_month = datetime(current_date.year, current_date.month, 1)
+        start_of_month_str = f"{current_date.year}-{current_date.month:02d}-01"
+        end_of_month_str = f"{current_date.year}-{current_date.month + 1 if current_date.month < 12 else 1:02d}-01"
 
-        end_of_month = datetime(current_date.year, current_date.month + 1, 1) - timedelta(days=1)
+        start_date = datetime.strptime(start_of_month_str, "%Y-%m-%d")
+        end_date = datetime.strptime(end_of_month_str, "%Y-%m-%d") - timedelta(days=1)
+
+        start_of_month = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_month = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        collection = await get_collection(client, "test_for_practice", "tenders_test")
 
         high_level_total = await collection.count_documents({
             "analysis.suspicious_level": "high",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         kyiv_high_level_total = await collection.count_documents({
             "analysis.suspicious_level": "high",
             "extended_info.region": "Київська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         chenivtshy_high_level_total = await collection.count_documents({
             "analysis.suspicious_level": "high",
             "extended_info.region": "Чернівецеька область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         kharkiv_high_level_total = await collection.count_documents({
             "analysis.suspicious_level": "high",
             "extended_info.region": "Харківська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         odessa_high_level_total = await collection.count_documents({
             "analysis.suspicious_level": "high",
             "extended_info.region": "Одеська область",
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         lviv_high_level_total = await collection.count_documents({
             "analysis.suspicious_level": "high",
             "extended_info.region": "Львівська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         if high_level_total != 0:
@@ -262,37 +274,37 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
 
         medium_level_total = await collection.count_documents({
             "analysis.suspicious_level": "medium",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         kyiv_medium_level_total = await collection.count_documents({
             "analysis.suspicious_level": "medium",
             "extended_info.region": "Київська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         chenivtshy_medium_level_total = await collection.count_documents({
             "analysis.suspicious_level": "medium",
             "extended_info.region": "Чернівцеька область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         kharkiv_medium_level_total = await collection.count_documents({
             "analysis.suspicious_level": "medium",
             "extended_info.region": "Харківська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         odessa_medium_level_total = await collection.count_documents({
             "analysis.suspicious_level": "medium",
             "extended_info.region": "Одеська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         lviv_medium_level_total = await collection.count_documents({
             "analysis.suspicious_level": "medium",
             "extended_info.region": "Львівська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         if medium_level_total != 0:
@@ -317,42 +329,39 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
         ]
 
 
-
-        #low level
-
         low_level_total = await collection.count_documents({
             "analysis.suspicious_level": "low",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         kyiv_low_level_total = await collection.count_documents({
             "analysis.suspicious_level": "low",
             "extended_info.region": "Київська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         chenivtshy_low_level_total = await collection.count_documents({
             "analysis.suspicious_level": "low",
             "extended_info.region": "Чернівцеька область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         kharkiv_low_level_total = await collection.count_documents({
             "analysis.suspicious_level": "low",
             "extended_info.region": "Харківська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         odessa_low_level_total = await collection.count_documents({
             "analysis.suspicious_level": "low",
             "extended_info.region": "Одеська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         lviv_low_level_total = await collection.count_documents({
             "analysis.suspicious_level": "low",
             "extended_info.region": "Львівська область",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
         if low_level_total != 0:
@@ -405,29 +414,40 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
 
 
 
-@app.get("/tenders/general_specious", tags=["statistic"])
+@app.get("/tendersstatC", tags=["statistic"])
 async def get_general_suspicous_statistic(client: AsyncIOMotorClient = Depends(connect_db)) -> dict:
     try:
 
+
         current_date = datetime.now()
-        start_of_month = datetime(current_date.year, current_date.month, 1)
-        end_of_month = datetime(current_date.year, current_date.month + 1, 1) - timedelta(days=1)
+
+
+        start_of_month_str = f"{current_date.year}-{current_date.month:02d}-01"
+        end_of_month_str = f"{current_date.year}-{current_date.month + 1 if current_date.month < 12 else 1:02d}-01"
+
+
+        start_date = datetime.strptime(start_of_month_str, "%Y-%m-%d")
+        end_date = datetime.strptime(end_of_month_str, "%Y-%m-%d") - timedelta(days=1)
+
+
+        start_of_month = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_month = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
 
         collection = await get_collection(client, "test_for_practice", "tenders_test")
 
-        total_count = await collection.count_documents({"creation_date": {"$gte": start_of_month, "$lte": end_of_month}})
+        total_count = await collection.count_documents({"creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}})
         high_level_total = await collection.count_documents({
             "analysis.suspicious_level": "high",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
         medium_level_total = await collection.count_documents({
             "analysis.suspicious_level": "medium",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
         low_level_total = await collection.count_documents({
             "analysis.suspicious_level": "low",
-            "creation_date": {"$gte": start_of_month, "$lte": end_of_month}
+            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
 
@@ -449,6 +469,7 @@ async def get_general_suspicous_statistic(client: AsyncIOMotorClient = Depends(c
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving data: {str(e)}")
+
 
 @app.get("/tenders/{tender_id}", tags=["lol"])
 async def get_tender(tender_id: str, client: AsyncIOMotorClient = Depends(connect_db)):
