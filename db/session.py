@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from motor.motor_asyncio import AsyncIOMotorClient
 
-MONGO_URI = "mongodb+srv://matiukhinoleksandr:matiukhinoleksandr@aeroport.9ir8trs.mongodb.net/?retryWrites=true&w=majority&appName=AEROPORT"
+MONGO_URI = "mongodb://AdminMASI:admin1488%40%40%40%40%40@129.151.207.119:27017/"
 
 app = FastAPI()
 

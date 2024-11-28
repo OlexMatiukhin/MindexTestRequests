@@ -141,6 +141,67 @@ async def test_get_tenders(
 
     print(tenders_result)
 
+async def get_all_tenders(
+
+) -> List[Tender]:
+    query = {}
+    collection = await get_collection(client, "MIAS", "tenders")
+    if collection is None:
+        raise HTTPException(status_code=500, detail="Database collection not found.")
+
+
+    if suspicious_level:
+        query["analysis.suspicious_level"] = suspicious_level
+
+    region="Одеська область"
+    if region:
+        if isinstance(region, str):
+            region = [region]
+        query["extended_info.region"] = {"$in": region}
+
+    if customer:
+        query["extended_info.contact_info.name"] = customer
+
+    if budget and len(budget) == 2:
+        query["budget_info.amount"] = {"$gte": budget[0], "$lte": budget[1]}
+
+    if organization:
+        query["extended_info.organization"] = {"$regex": organization, "$options": "i"}
+    sort_key = []
+    if sort_by:
+        sort_mapping = {
+            "новіші": ["creation_date", 1],
+            "старші": ["creation_date", -1],
+            "дешевші": ["budget_info.amount", 1],
+            "дорожчі": ["budget_info.amount", -1],
+        }
+        try:
+            sort_key = sort_mapping[sort_by]
+        except KeyError:
+            raise HTTPException(status_code=400, detail="Invalid sort_by parameter.")
+    else:
+        sort_key = ["$natural", 1]
+
+    start = 0
+    limit = 15
+    if quantity_strings and len(quantity_strings) == 2:
+        start, end = quantity_strings
+        if 0 < start < end:
+            start -= 1
+            limit = end - start
+
+        else:
+            raise HTTPException(status_code=400, detail="Invalid range in quantity_strings.")
+
+    cursor = collection.find(query).sort(sort_key[0], sort_key[1]).skip(start).limit(limit)
+    tenders = await cursor.to_list(length=limit)
+
+
+    if not tenders:
+        raise HTTPException(status_code=404, detail="No tenders found.")
+
+    return [Tender(**{**tender, "_id": str(tender["_id"])}) for tender in tenders]
+
 
 
 if __name__ == "__main__":

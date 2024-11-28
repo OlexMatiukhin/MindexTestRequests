@@ -1,18 +1,17 @@
 from datetime import datetime
+from typing import List, Optional
+from pydantic import BaseModel, EmailStr, Field
 
-from bson import ObjectId
-from pydantic import BaseModel, Field, EmailStr
-from typing_extensions import Annotated, Optional, List
-"""
+
 class ContactInfo(BaseModel):
-    name: str
-    email: EmailStr
-    telephone: str
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    telephone: Optional[str]
 
 
 class ExtendedInfo(BaseModel):
     organization: str
-    region: str
+    region: Optional[str]
     contact_info: ContactInfo
 
 
@@ -23,9 +22,9 @@ class Item(BaseModel):
 
 
 class BudgetInfo(BaseModel):
-    currency: str
-    valueAddedTaxIncluded: bool
-    amount: float
+    currency: Optional[str] = None
+    valueAddedTaxIncluded: Optional[bool] = None
+    amount: Optional[float] = None
 
 
 class Issue(BaseModel):
@@ -35,65 +34,11 @@ class Issue(BaseModel):
 
 class Analysis(BaseModel):
     suspicious_level: str
-    issues: Optional[List[Issue]] = Field(default_factory=list)
+    issues: Optional[List[Issue]] = []
 
 
 class Tender(BaseModel):
-    id: str = Field(..., alias="_id")
-    tender_id: str
-    title: str
-    creation_date: datetime
-    extended_info: ExtendedInfo
-    items: List[Item]
-    deadline: datetime
-    budget_info: BudgetInfo
-    analysis: Analysis
-
-    class Config:
-        json_encoders = {
-            ObjectId: str
-        }
-
-"""
-
-
-
-class ContactInfo(BaseModel):
-    name: str
-    email: EmailStr
-    telephone: str
-
-
-class ExtendedInfo(BaseModel):
-    organization: str
-    region: str
-    contact_info: ContactInfo
-
-
-class Item(BaseModel):
-    description: str
-    quantity: float
-    unit_name: str
-
-
-class BudgetInfo(BaseModel):
-    currency: str
-    valueAddedTaxIncluded: bool
-    amount: float
-
-
-class Issue(BaseModel):
-    type: str
-    description: str
-
-
-class Analysis(BaseModel):
-    suspicious_level: str
-    issues: Optional[List[Issue]] = Field(default_factory=list)
-
-
-class Tender(BaseModel):
-    id: str = Field(..., alias="_id")  # Використовуємо id як рядок
+    id: str = Field(..., alias="_id")  # Використовуємо _id як id
     tender_id: str
     title: str
     creation_date: datetime
@@ -104,10 +49,10 @@ class Tender(BaseModel):
     analysis: Analysis
 
     class Config:
-
         json_encoders = {
-            datetime: lambda v: v.isoformat()  # Преобразование datetime в строку ISO
+            datetime: lambda v: v.isoformat()  # Перетворення datetime в формат ISO
         }
+
 
 
 
