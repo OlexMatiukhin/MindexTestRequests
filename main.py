@@ -26,6 +26,7 @@ tags_metadata = [
 
 app = FastAPI()
 
+
 @app.get("/tenders",  tags=["tenders"] )
 async def get_all_tenders(
         suspicious_level: Optional[str] = Query(None),
@@ -43,7 +44,7 @@ async def get_all_tenders(
        Запит для отримання переліку тендерів з можливістю фільтрації (**Параметри для фільтрації опціональні, якщо поля фільтрації не заповнені - за замовченням беруться останні 15 елементів**) .
 
        - **suspicious_level**: Рівень підозрілості: high, low, medium. **Передбачається реалізація у  майбутьному**.
-       - **sort_by**: Поле для сортировки: 'oldest', 'newest', 'expensive', 'cheap'.
+       - **sort_by**: Поле для сортування: 'oldest', 'newest', 'expensive', 'cheap'.
        - **date_from**: Масив  двох дат в у форматі YYYY-MM-DD для фільтрації по creation_date, може мати тільки 2 елементи верхню і нижню межу.
        - **region**: Фільтрація за регіон організації-замовника.
        - **organization**: Назва організації.
@@ -64,15 +65,20 @@ async def get_all_tenders(
         try:
             start_date = datetime.strptime(date_from[0], "%Y-%m-%d")
             end_date = datetime.strptime(date_from[1], "%Y-%m-%d")
+
             start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-            if start_date>end_date:
-                query["creation_date"] = {
-                    "$gte": start_date.isoformat(),
-                    "$lte": end_date.isoformat()
-                }
-            else:
-                raise HTTPException(status_code=400, detail="Start  date must be.")
+
+            if start_date > end_date:
+                raise HTTPException(status_code=400, detail="Дата початку має бути пізніше за дату закінчення.")
+
+            query["creation_date"] = {
+                "$gte": start_date.isoformat(),
+                "$lte": end_date.isoformat()
+            }
+
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Невірний формат дати. Використовуйте формат 'YYYY-MM-DD'.")
 
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
@@ -83,14 +89,14 @@ async def get_all_tenders(
         query["extended_info.region"] = {"$in": region}
 
     if customer:
-        query["extended_info.contact_info.name"] = customer
+        query["extended_info.contact_info.name"] = {"$regex": customer, "$options": "i"}
 
     if budget and len(budget) == 2:
         query["budget_info.amount"] = {"$gte": budget[0], "$lte": budget[1]}
 
     if organization:
         query["extended_info.organization"] = {"$regex": organization, "$options": "i"}
-    sort_key = ["$natural", 1]  # Значение по умолчанию
+    sort_key = ["$natural", 1]
     if sort_by:
         sort_mapping = {
             "oldest": ["creation_date", -1],
@@ -238,10 +244,7 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
 
         collection = await get_collection(client, "MIAS", "tenders")
 
-        high_level_total = await collection.count_documents({
-            "analysis.suspicious_level": "high",
-            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
-        })
+
 
         kyiv_high_level_total = await collection.count_documents({
             "analysis.suspicious_level": "high",
@@ -251,7 +254,7 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
 
         chenivtshy_high_level_total = await collection.count_documents({
             "analysis.suspicious_level": "high",
-            "extended_info.region": "Чернівецеька область",
+            "extended_info.region": "Чернівецька область",
             "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
@@ -272,6 +275,8 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
             "extended_info.region": "Львівська область",
             "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
+
+        high_level_total=kyiv_high_level_total +chenivtshy_high_level_total+ kharkiv_high_level_total+odessa_high_level_total+lviv_high_level_total;
 
         if high_level_total != 0:
             kyiv_high_level_percentage = int(round(kyiv_high_level_total / high_level_total * 100))
@@ -294,13 +299,15 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
             odessa_high_level_percentage,
             lviv_high_level_percentage]
 
+        data_high = [int(round(p)) for p in data_high]
+        rounding_error_data_high = 100 - sum(data_high)
+
+        if rounding_error_data_high != 0:
+            max_index = data_high.index(max(data_high))
+            data_high[max_index] += rounding_error_data_high
+
+
         #medium_level
-
-        medium_level_total = await collection.count_documents({
-            "analysis.suspicious_level": "medium",
-            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
-        })
-
         kyiv_medium_level_total = await collection.count_documents({
             "analysis.suspicious_level": "medium",
             "extended_info.region": "Київська область",
@@ -309,7 +316,7 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
 
         chenivtshy_medium_level_total = await collection.count_documents({
             "analysis.suspicious_level": "medium",
-            "extended_info.region": "Чернівцеька область",
+            "extended_info.region": "Чернівецька область",
             "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
@@ -330,6 +337,7 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
             "extended_info.region": "Львівська область",
             "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
+        medium_level_total = kyiv_medium_level_total +chenivtshy_medium_level_total+ kharkiv_medium_level_total+odessa_medium_level_total+lviv_medium_level_total;
 
         if medium_level_total != 0:
             kyiv_medium_level_percentage = int(round(kyiv_medium_level_total / medium_level_total * 100))
@@ -352,11 +360,13 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
             lviv_medium_level_percentage
         ]
 
+        data_medium = [int(round(p)) for p in data_medium]
+        rounding_error_data_medium = 100 - sum(data_medium)
 
-        low_level_total = await collection.count_documents({
-            "analysis.suspicious_level": "low",
-            "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
-        })
+        if rounding_error_data_medium != 0:
+            max_index = data_medium.index(max(data_medium))
+            data_medium[max_index] += rounding_error_data_medium
+
 
         kyiv_low_level_total = await collection.count_documents({
             "analysis.suspicious_level": "low",
@@ -366,7 +376,7 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
 
         chenivtshy_low_level_total = await collection.count_documents({
             "analysis.suspicious_level": "low",
-            "extended_info.region": "Чернівцеька область",
+            "extended_info.region": "Чернівецька область",
             "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
 
@@ -387,6 +397,7 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
             "extended_info.region": "Львівська область",
             "creation_date": {"$gte": start_of_month.isoformat(), "$lte": end_of_month.isoformat()}
         })
+        low_level_total = kyiv_low_level_total +chenivtshy_low_level_total+ kharkiv_low_level_total+odessa_low_level_total+lviv_low_level_total;
 
         if low_level_total != 0:
             kyiv_low_level_percentage = int(round(kyiv_low_level_total / low_level_total * 100))
@@ -409,10 +420,23 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
             lviv_low_level_percentage
         ]
 
+        data_low = [int(round(p)) for p in data_low]
+
+        rounding_error_data_low = 100 - sum(data_low)
+
+        if rounding_error_data_low != 0:
+            max_index = data_low.index(max(data_low))
+            data_low[max_index] += rounding_error_data_low
+
 
         return [
             {
                 "labels": labels,
+                "low_level_total": low_level_total,
+                "medium_level_total": medium_level_total,
+
+                "high_level_total": high_level_total,
+
                 "datasets": [
                     {
                         "label": "Low Risk",
@@ -432,6 +456,8 @@ async def get_region_suspicous_statistic(client: AsyncIOMotorClient = Depends(co
                 ],
             }
         ]
+
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving data: {str(e)}")
 @app.get("/tenders/general_suspicous_statistic", tags=["statistic"])
@@ -445,8 +471,6 @@ async def get_general_suspicous_statistic(client: AsyncIOMotorClient = Depends(c
     try:
 
         current_date = datetime.now()
-
-        # Визначення початку і кінця місяця
         start_of_month_str = f"{current_date.year}-{current_date.month:02d}-01"
         end_of_month_str = f"{current_date.year}-{current_date.month + 1 if current_date.month < 12 else 1:02d}-01"
 
@@ -456,7 +480,7 @@ async def get_general_suspicous_statistic(client: AsyncIOMotorClient = Depends(c
         start_of_month = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_of_month = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-        # Завантаження даних
+    
         collection = await get_collection(client, "MIAS", "tenders")
 
         total_count = await collection.count_documents({
@@ -511,6 +535,8 @@ async def get_general_suspicous_statistic(client: AsyncIOMotorClient = Depends(c
 @app.get("/tenders/{tender_id}", tags=["tenders"])
 async def get_tender(tender_id: str, client: AsyncIOMotorClient = Depends(connect_db)):
     return None
+
+
 
 
 
