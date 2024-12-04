@@ -119,8 +119,8 @@ async def get_all_tenders(
     sort_key = ["$natural", -1]
     if sort_by:
         sort_mapping = {
-            "oldest": ["creation_date", -1],
-            "newest": ["creation_date", 1],
+            "newest": ["creation_date", -1],
+            "oldest": ["creation_date", 1],
             "expensive": ["budget_info.amount", -1],
             "cheap": ["budget_info.amount", 1],
         }
